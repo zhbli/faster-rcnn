@@ -387,6 +387,11 @@ class Network(nn.Module):
 
     self._image = Variable(torch.from_numpy(image.transpose([0,3,1,2])).cuda(), volatile=mode == 'TEST')
     self._im_info = im_info # No need to change; actually it can be an list
+
+    # v0.4
+    cfg.current_im_info = im_info
+    # v0.4
+
     self._gt_boxes = Variable(torch.from_numpy(gt_boxes).cuda()) if gt_boxes is not None else None
 
     self._mode = mode

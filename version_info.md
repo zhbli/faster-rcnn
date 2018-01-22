@@ -25,3 +25,12 @@ Usage: Run `unit_test_sample_rois_handly.py`
 Change list:
 - [Modify_file] unit_test_sample_rois_handly.py
 - [Add_file] _sample_rois_input.txt
+
+# v1.0
+Train net using manually sampled rois.
+
+Usage: Run `trainval_net.py`
+
+Change list:
+- [Modify_function] _sample_rois
+

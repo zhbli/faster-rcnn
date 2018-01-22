@@ -61,6 +61,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
     all_rois: Variable, cuda, FloatTensor, [?, 5]. First col are all 0's, [0, x1, y1, x2, y2]
     gt_boxes: Variable, cuda, FloatTensor, [?, 5]. [x1, y1, x2, y2, cls]
     """
+    gt_boxes = Variable(torch.cuda.FloatTensor([0, 346.7066, 549.7006, 896.4072, 15]).view(-1,5))
     gt_boxes_np = gt_boxes.data.cpu().numpy()
     gt = gt_boxes_np[:,:-1]
     gt_label = gt_boxes_np[:,-1]
@@ -82,7 +83,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
     x1, y1, x2, y2  = gt_selected[:,0], gt_selected[:,1], gt_selected[:,2], gt_selected[:,3]
 
     area_gt = (y2-y1) * (x2-x1)
-    im_width, im_height = 700, 700
+    im_width, im_height = 7000, 7000
 
     bg_rois = get_bg_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image)
 
