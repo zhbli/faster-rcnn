@@ -34,3 +34,7 @@ Usage: Run `trainval_net.py`
 Change list:
 - [Modify_function] _sample_rois
 
+Result: 
+Mean AP = 0.6084, 70000 iters; mAP = 0.63, 120000 iters. The result is net good.
+If set fg_num = 64, We can get mAP = 0.6974. It means the code I have changed has no bug.
+
