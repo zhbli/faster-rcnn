@@ -10,4 +10,4 @@ Usage: Run `trainval_net.py`
 
 Change list:
 - [Modify_function] vgg16.py -> _image_to_head
-- [Modify_function] network.py -> _crop_pool_layer 
+- [Modify_function] network.py -> _crop_pool_layer  
