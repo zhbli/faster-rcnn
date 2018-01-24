@@ -89,7 +89,7 @@ class Network(nn.Module):
   def _roi_pool_layer(self, bottom, rois):
     return RoIPoolFunction(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1. / 16.)(bottom, rois)
 
-  def _crop_pool_layer(self, bottom, rois, max_pool=True):
+  def _crop_pool_layer(self, net_conv1, net_conv2, net_conv3, rois, max_pool=True):
     # implement it using stn
     # box to affine
     # input (x1,y1,x2,y2)
@@ -104,13 +104,14 @@ class Network(nn.Module):
     """
     rois = rois.detach()
 
+    """net_conv1"""
     x1 = rois[:, 1::4] / 16.0
     y1 = rois[:, 2::4] / 16.0
     x2 = rois[:, 3::4] / 16.0
     y2 = rois[:, 4::4] / 16.0
 
-    height = bottom.size(2)
-    width = bottom.size(3)
+    height = net_conv1.size(2)
+    width = net_conv1.size(3)
 
     # affine theta
     theta = Variable(rois.data.new(rois.size(0), 2, 3).zero_())
@@ -122,12 +123,35 @@ class Network(nn.Module):
     if max_pool:
       pre_pool_size = cfg.POOLING_SIZE * 2
       grid = F.affine_grid(theta, torch.Size((rois.size(0), 1, pre_pool_size, pre_pool_size)))
-      crops = F.grid_sample(bottom.expand(rois.size(0), bottom.size(1), bottom.size(2), bottom.size(3)), grid)
+      crops = F.grid_sample(net_conv1.expand(rois.size(0), net_conv1.size(1), net_conv1.size(2), net_conv1.size(3)), grid)
       crops = F.max_pool2d(crops, 2, 2)
     else:
       grid = F.affine_grid(theta, torch.Size((rois.size(0), 1, cfg.POOLING_SIZE, cfg.POOLING_SIZE)))
-      crops = F.grid_sample(bottom.expand(rois.size(0), bottom.size(1), bottom.size(2), bottom.size(3)), grid)
-    
+      crops = F.grid_sample(net_conv1.expand(rois.size(0), net_conv1.size(1), net_conv1.size(2), net_conv1.size(3)), grid)
+    crops1 = crops
+
+    """net_conv2"""
+    if max_pool:
+      pre_pool_size = cfg.POOLING_SIZE * 2
+      grid = F.affine_grid(theta, torch.Size((rois.size(0), 1, pre_pool_size, pre_pool_size)))
+      crops = F.grid_sample(net_conv2.expand(rois.size(0), net_conv2.size(1), net_conv2.size(2), net_conv2.size(3)), grid)
+      crops = F.max_pool2d(crops, 2, 2)
+    else:
+      grid = F.affine_grid(theta, torch.Size((rois.size(0), 1, cfg.POOLING_SIZE, cfg.POOLING_SIZE)))
+      crops = F.grid_sample(net_conv2.expand(rois.size(0), net_conv2.size(1), net_conv2.size(2), net_conv2.size(3)), grid)
+    crops2 = crops
+
+    """net_conv3"""
+    if max_pool:
+      pre_pool_size = cfg.POOLING_SIZE * 2
+      grid = F.affine_grid(theta, torch.Size((rois.size(0), 1, pre_pool_size, pre_pool_size)))
+      crops = F.grid_sample(net_conv3.expand(rois.size(0), net_conv3.size(1), net_conv3.size(2), net_conv3.size(3)), grid)
+      crops = F.max_pool2d(crops, 2, 2)
+    else:
+      grid = F.affine_grid(theta, torch.Size((rois.size(0), 1, cfg.POOLING_SIZE, cfg.POOLING_SIZE)))
+      crops = F.grid_sample(net_conv3.expand(rois.size(0), net_conv3.size(1), net_conv3.size(2), net_conv3.size(3)), grid)
+    crops3 = crops
+    crops = torch.cat([crops1, crops2, crops3], 1)
     return crops
 
   def _anchor_target_layer(self, rpn_cls_score):
@@ -324,6 +348,11 @@ class Network(nn.Module):
     self.cls_score_net = nn.Linear(self._fc7_channels, self._num_classes)
     self.bbox_pred_net = nn.Linear(self._fc7_channels, self._num_classes * 4)
 
+    self.branch11 = nn.Conv2d(256, 170, [3, 3], stride=2, padding=1)
+    self.branch12 = nn.Conv2d(170, 170, [3, 3], stride=2, padding=1)
+    self.branch2 = nn.Conv2d(512, 170, [3, 3], stride=2, padding=1)
+    self.branch3 = nn.Conv2d(512, 172, [1, 1])
+
     self.init_weights()
 
   def _run_summary_op(self, val=False):
@@ -358,14 +387,14 @@ class Network(nn.Module):
   def _predict(self):
     # This is just _build_network in tf-faster-rcnn
     torch.backends.cudnn.benchmark = False
-    net_conv = self._image_to_head()
+    net_conv1, net_conv2, net_conv3, net_conv = self._image_to_head()
 
     # build the anchors for the image
     self._anchor_component(net_conv.size(2), net_conv.size(3))
    
     rois = self._region_proposal(net_conv)
     if cfg.POOLING_MODE == 'crop':
-      pool5 = self._crop_pool_layer(net_conv, rois)
+      pool5 = self._crop_pool_layer(net_conv1, net_conv2, net_conv3, rois)
     else:
       pool5 = self._roi_pool_layer(net_conv, rois)
 
@@ -417,6 +446,11 @@ class Network(nn.Module):
     normal_init(self.rpn_bbox_pred_net, 0, 0.01, cfg.TRAIN.TRUNCATED)
     normal_init(self.cls_score_net, 0, 0.01, cfg.TRAIN.TRUNCATED)
     normal_init(self.bbox_pred_net, 0, 0.001, cfg.TRAIN.TRUNCATED)
+
+    normal_init(self.branch11, 0, 0.01, cfg.TRAIN.TRUNCATED)
+    normal_init(self.branch12, 0, 0.01, cfg.TRAIN.TRUNCATED)
+    normal_init(self.branch2, 0, 0.01, cfg.TRAIN.TRUNCATED)
+    normal_init(self.branch3, 0, 0.01, cfg.TRAIN.TRUNCATED)
 
   # Extract the head feature maps, for example for vgg16 it is conv5_3
   # only useful during testing mode

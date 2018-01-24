@@ -13,6 +13,7 @@ from model.config import cfg
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from collections import OrderedDict, Iterable
 from torch.autograd import Variable
 import math
 import torchvision.models as models
@@ -37,11 +38,23 @@ class vgg16(Network):
     # not using the last maxpool layer
     self._layers['head'] = nn.Sequential(*list(self.vgg.features._modules.values())[:-1])
 
+  # v1.0
   def _image_to_head(self):
-    net_conv = self._layers['head'](self._image)
-    self._act_summaries['conv'] = net_conv
+    s1 = nn.Sequential(OrderedDict(list(self._layers['head']._modules.items())[0:16]))
+    s2 = nn.Sequential(OrderedDict(list(self._layers['head']._modules.items())[16:23]))
+    s3 = nn.Sequential(OrderedDict(list(self._layers['head']._modules.items())[23:30]))
+    temp10 = s1(self._image)
+    temp11 = self.branch11(temp10)
+    net_conv1 = self.branch12(temp11)
+    temp20 = s2(temp10)
+    net_conv2 = self.branch2(temp20)
+    temp30 = s3(temp20)
+    net_conv3 = self.branch3(temp30)
+
+    self._act_summaries['conv'] = temp30
     
-    return net_conv
+    return net_conv1, net_conv2, net_conv3, temp30
+  # v1.0
 
   def _head_to_tail(self, pool5):
     pool5_flat = pool5.view(pool5.size(0), -1)
