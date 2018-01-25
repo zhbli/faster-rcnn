@@ -10,6 +10,8 @@ from __future__ import print_function
 
 import numpy as np
 import numpy.random as npr
+import cv2
+import time
 from model.config import cfg
 from model.bbox_transform import bbox_transform
 from utils.bbox import bbox_overlaps
@@ -139,47 +141,100 @@ def get_IoU(BBGT, bb):
     overlaps = inters / uni
     return overlaps
 
+def filter_fg_rois_by_attention(gt, gt_selected, pre_fg_rois_np, fg_rois_per_image, gt_choice_idx_pre, scale):
+    """
+    :param gt: ndarray, shape=[?, 4]
+    :param gt_selected: ndarray, shape=[256, 4]
+    :param pre_fg_rois_np: ndarray, shape=[256, 4]
+    :param fg_rois_per_image: int, =64
+    :param gt_choice_idx_pre: ndarray, shape=256, the corresponding gt_index of every roi.
+    :return fg_rois_np: shape=[64, 4]
+    """
+
+    # flip and rescale attention maps
+    current_img_attention = cfg.attention[cfg.current_img_name]
+    for i in range(len(current_img_attention)):
+        ## flip attention maps
+        if cfg.current_img_is_flipped:
+            current_img_attention[i] = cv2.flip(current_img_attention[i], 1)
+        ##
+        ## rescale attention maps
+        current_img_attention[i] = cv2.resize(current_img_attention[i], (gt[i][2] - gt[i][0], gt[i][3] - gt[i][1]))
+        ##
+        ## set value<0.5 to 0
+        current_img_attention[i][current_img_attention[i] < 0.5] = 0
+        ##
+    #
+
+    # get intersection region of every roi
+    ixmin = np.maximum(gt_selected[:, 0], pre_fg_rois_np[:, 0])
+    iymin = np.maximum(gt_selected[:, 1], pre_fg_rois_np[:, 1])
+    ixmax = np.minimum(gt_selected[:, 2], pre_fg_rois_np[:, 2])
+    iymax = np.minimum(gt_selected[:, 3], pre_fg_rois_np[:, 3])
+    #
+
+    # shift the coordinate of intersection region from whole_img_based to gt_based
+    ixmin = (ixmin - gt_selected[:, 0]).astype(int)
+    iymin = (iymin - gt_selected[:, 1]).astype(int)
+    ixmax = (ixmax - gt_selected[:, 0]).astype(int)
+    iymax = (iymax - gt_selected[:, 1]).astype(int)
+    #
+
+    # for every roi, get attention score.
+    attention_score = -np.ones(len(pre_fg_rois_np))
+    for i in range(len(pre_fg_rois_np)):
+        intersection_attention = current_img_attention[gt_choice_idx_pre[i]][iymin[i]:iymax[i],ixmin[i]:ixmax[i]]
+        attention_score[i] = np.sum(intersection_attention)
+    #
+
+    # get the gt_inds of high_scored_rois
+    idx_of_selected_rois = np.argsort(-attention_score)[0:fg_rois_per_image]
+    gt_choice_idx_after = gt_choice_idx_pre[idx_of_selected_rois]  # len: 64
+    #
+
+    # get the selected rois
+    fg_rois_np_after = pre_fg_rois_np[idx_of_selected_rois,:]
+    #
+
+    return gt_choice_idx_after, fg_rois_np_after
+
+
+
 def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_image, num_classes):
   """Generate a random sample of RoIs comprising foreground and background
   examples.
   """
-  im_info = cfg.current_im_info
-  im_width, im_height = im_info[1], im_info[0]
   """Args:
     all_rois: Variable, cuda, FloatTensor, [?, 5]. First col are all 0's, [0, x1, y1, x2, y2]
     gt_boxes: Variable, cuda, FloatTensor, [?, 5]. [x1, y1, x2, y2, cls]
   """
+
+  time_start = time.time()
+  """variable declaration"""
+  im_info = cfg.current_im_info
+  im_width, im_height = im_info[1], im_info[0]
+  pre_fg_roi_num = 256  # First, generate 256 fg_rois, then filter 64 fg_rois by attention_scores.
+  """end: variable declaration"""
+
+  """end: generate fg_rois"""
   gt_boxes_np = gt_boxes.data.cpu().numpy()
   gt = gt_boxes_np[:, :-1]
   gt_label = gt_boxes_np[:, -1]
-  r = np.random.rand(fg_rois_per_image) * (1 - cfg.TRAIN.FG_THRESH) + cfg.TRAIN.FG_THRESH
-  # gt = np.array([[50, 10, 60, 320], [150, 100, 660, 320], [150, 10, 660, 320]])
+  # r: randomly sampled IoU of every RoI.
+  r = np.random.rand(pre_fg_roi_num) * (1 - cfg.TRAIN.FG_THRESH) + cfg.TRAIN.FG_THRESH
   num_gt = gt.shape[0]
-  # r = np.array([0.3, 0.8, 0.5, 0.6, 0.4])
-  num_roi = r.shape[0]
-  if num_roi < 192:
-    print('too few rois: {:d}'.format(num_roi))
-
-  gt_choice_idx = np.random.choice(num_gt, num_roi)
-  gt_selected = gt[gt_choice_idx]
-  labels = np.zeros(int(rois_per_image))
-  gt_selected_label = gt_label[gt_choice_idx]
-  labels[0:len(gt_selected_label)] = gt_selected_label
-  labels = torch.from_numpy(labels).type(torch.cuda.FloatTensor)
-  labels = Variable(labels, requires_grad=False)
+  gt_choice_idx_pre = np.random.choice(num_gt, pre_fg_roi_num)
+  gt_selected = gt[gt_choice_idx_pre]
   x1, y1, x2, y2 = gt_selected[:, 0], gt_selected[:, 1], gt_selected[:, 2], gt_selected[:, 3]
-
   area_gt = (y2 - y1) * (x2 - x1)
-
   bg_rois = get_bg_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image)
-
   """STEP 1: s1a"""
   s1a = x2 - (x2 - x1) / r
   s1a = np.maximum(0, s1a)
   """STEP 2: s1b"""
   s1b = x2 - r * (x2 - x1)
   # Get s1
-  s1 = np.random.rand(num_roi) * (s1b - s1a) + s1a
+  s1 = np.random.rand(pre_fg_roi_num) * (s1b - s1a) + s1a
 
   """STEP 3: s2a"""
   s2a = r * (x2 - np.minimum(x1, s1)) + np.maximum(x1, s1)
@@ -187,7 +242,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   s2b = np.minimum(x1, s1) + (x2 - np.maximum(x1, s1)) / r
   s2b = np.minimum(im_width, s2b)
   # Get s2
-  s2 = np.random.rand(num_roi) * (s2b - s2a) + s2a
+  s2 = np.random.rand(pre_fg_roi_num) * (s2b - s2a) + s2a
 
   intersection_width = np.minimum(x2, s2) - np.maximum(x1, s1)
   """STEP 5: t1a"""
@@ -197,7 +252,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   """STEP 6: t1b"""
   t1b = y2 - area_gt / (intersection_width / r - s2 + s1 + intersection_width)
   # Get t1
-  t1 = np.random.rand(num_roi) * (t1b - t1a) + t1a
+  t1 = np.random.rand(pre_fg_roi_num) * (t1b - t1a) + t1a
 
   """STEP 7: t2a"""
   t2a = (np.maximum(t1,
@@ -209,24 +264,49 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   t2b = np.minimum(im_height, t2b)
   # Get t2
   t2 = np.stack((t2a, t2b))
-  t2_choice_idx = np.random.choice(2, num_roi)
-  t2 = t2[t2_choice_idx, range(0, num_roi)]
+  t2_choice_idx = np.random.choice(2, pre_fg_roi_num)
+  t2 = t2[t2_choice_idx, range(0, pre_fg_roi_num)]
 
-  fg_rois_np = np.stack((s1, t1, s2, t2), 1)
-  IoU = get_IoU(gt_selected, fg_rois_np)
-  if min(IoU) < 0.4:
-    print('IoU too small: {:f}'.format(min(IoU)))
+  pre_fg_rois_np = np.stack((s1, t1, s2, t2), 1)
+  """end: generate fg_rois"""
+  # IoU = get_IoU(gt_selected, fg_rois_np)
+  # if min(IoU) < 0.4:
+  #   print('IoU too small: {:f}'.format(min(IoU)))
+
+  """select 64 fg_rois by attention_score"""
+  gt_choice_idx_after, fg_rois_np = filter_fg_rois_by_attention(gt, gt_selected, pre_fg_rois_np, fg_rois_per_image, gt_choice_idx_pre, im_info[2])
+  """end: select 64 fg_rois by attention_score"""
+
+  """generate variables need to return"""
+  """get labels"""
+  labels = np.zeros(int(rois_per_image))
+  gt_selected_label = gt_label[gt_choice_idx_after]
+  labels[0:len(gt_selected_label)] = gt_selected_label
+  labels = torch.from_numpy(labels).type(torch.cuda.FloatTensor)
+  labels = Variable(labels, requires_grad=False)
+  """end: get labels"""
+
+  """get return value: rois"""
   fg_rois_np0 = np.c_[[0] * fg_rois_np.shape[0], fg_rois_np]
   fg_rois = torch.from_numpy(fg_rois_np0).type(torch.cuda.FloatTensor)
   fg_rois = Variable(fg_rois, requires_grad=True)
   rois = torch.cat([fg_rois, bg_rois], 0)
+  """end: get return value: rois"""
+
+  """get return value: roi_scores"""
   roi_scores = all_scores[0:int(rois_per_image)].contiguous()  # No use
+  """end: get return value: roi_scores"""
+
   gt_assignment_np = np.zeros(int(rois_per_image))
-  gt_assignment_np[0:gt_choice_idx.shape[0]] = gt_choice_idx
+  gt_assignment_np[0:gt_choice_idx_after.shape[0]] = gt_choice_idx_after  # gt_idx of every roi
   gt_assignment = torch.from_numpy(gt_assignment_np).type(torch.cuda.LongTensor)
   bbox_target_data = _compute_targets(
     rois[:, 1:5].data, gt_boxes[gt_assignment][:, :4].data, labels.data)
   bbox_targets, bbox_inside_weights = \
     _get_bbox_regression_labels(bbox_target_data, num_classes)
+  """end: generate variables need to return"""
+
+  time_end = time.time()
+  print('_sample_rois() cost {:f} s.'.format(time_end - time_start))
 
   return labels, rois, roi_scores, bbox_targets, bbox_inside_weights

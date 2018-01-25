@@ -16,6 +16,7 @@ import argparse
 import pprint
 import numpy as np
 import sys
+import pickle
 
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
@@ -98,6 +99,10 @@ if __name__ == '__main__':
   print('Using config:')
   pprint.pprint(cfg)
 
+  attention_file_name = '/data/zhbli/VOCdevkit/results/VOC2007/CAM/all_attention_maps.pkl'
+  attention_file = open(attention_file_name, 'rb')
+  cfg.attention = pickle.load(attention_file)
+
   np.random.seed(cfg.RNG_SEED)
 
   # train set
@@ -132,7 +137,9 @@ if __name__ == '__main__':
     net = mobilenetv1()
   else:
     raise NotImplementedError
-    
+
+
+
   train_net(net, imdb, roidb, valroidb, output_dir, tb_dir,
             pretrained_model=args.weight,
             max_iters=args.max_iters)

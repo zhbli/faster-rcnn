@@ -70,8 +70,9 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
     num_gt = gt.shape[0]
     #r = np.array([0.3, 0.8, 0.5, 0.6, 0.4])
     num_roi = r.shape[0]
-    if num_roi < 192:
-        print('too few rois: {:d}'.format(num_roi))
+
+    """get current_img_attention"""
+    current_img_attention = cfg.attention['000005']
 
     gt_choice_idx = np.random.choice(num_gt, num_roi)
     gt_selected = gt[gt_choice_idx]
@@ -148,4 +149,10 @@ if __name__ == '__main__':
     file = open('tools/_sample_rois_input.txt', 'rb')
     input = pickle.load(file)
     all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_image, num_classes = tuple(input)
+
+    """load attention pkl file"""
+    attention_file_name = '/data/zhbli/VOCdevkit/results/VOC2007/CAM/all_attention_maps.pkl'
+    attention_file = open(attention_file_name, 'rb')
+    cfg.attention = pickle.load(attention_file)
+
     _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_image, num_classes)
