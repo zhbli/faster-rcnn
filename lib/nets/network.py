@@ -9,6 +9,8 @@ from __future__ import print_function
 
 import math
 import numpy as np
+import cv2
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -151,11 +153,68 @@ class Network(nn.Module):
 
     return rpn_labels
 
+  def visualize_rois(self, rois, roi_scores, gt_boxes, is_flipped, img_id, width, scale):
+    # rois:       size = [256, 4]
+    # roi_scores: scores of RPN
+    # width:      width after scaled
+    img_name = '/data/zhbli/VOCdevkit/VOC2007/JPEGImages/{:s}.jpg'.format(img_id)
+    do_visualize = input("1/0")
+    if do_visualize == '1':
+        """Handle flip and scale"""
+        if is_flipped == True:
+          oldx1 = rois[:, 0].copy()
+          oldx2 = rois[:, 2].copy()
+          rois[:, 0] = width - oldx2 - 1  # self._im_info[1] is width of img after scaled
+          rois[:, 2] = width - oldx1 - 1
+
+          oldx1 = gt_boxes[:, 0].copy()
+          oldx2 = gt_boxes[:, 2].copy()
+          gt_boxes[:, 0] = width - oldx2 - 1  # self._im_info[1] is width of img after scaled
+          gt_boxes[:, 2] = width - oldx1 - 1
+
+        rois = rois / scale
+        gt_boxes = gt_boxes / scale
+        """Handle flip and scale"""
+
+        im = cv2.imread(img_name)
+        im = im[:, :, (2, 1, 0)]
+
+        for i in range(rois.shape[0]):
+            fig, ax = plt.subplots(figsize=(12, 12))
+            ax.imshow(im, aspect='equal')
+            roi = rois[i]
+            score = roi_scores[i]
+            ax.add_patch(
+                plt.Rectangle((roi[0], roi[1]),
+                              roi[2] - roi[0],
+                              roi[3] - roi[1], fill=False,
+                              edgecolor='red', linewidth=3.5)
+            )
+            ax.text(roi[0], roi[1] - 2,
+                    'PRN score is {:.3f}'.format(score),
+                    bbox=dict(facecolor='blue', alpha=0.5),
+                    fontsize=14, color='white')
+            for j in range(gt_boxes.shape[0]):
+                gt = gt_boxes[j]
+                ax.add_patch(
+                    plt.Rectangle((gt[0], gt[1]),
+                                  gt[2] - gt[0],
+                                  gt[3] - gt[1], fill=False,
+                                  edgecolor='green', linewidth=3.5)
+                )
+            plt.axis('off')
+            plt.tight_layout()
+            plt.draw()
+            #plt.show()
+
   def _proposal_target_layer(self, rois, roi_scores):
     rois, roi_scores, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights = \
       proposal_target_layer(
       rois, roi_scores, self._gt_boxes, self._num_classes)
 
+    # self.visualize_rois(rois.data.cpu().numpy()[:, 1:], roi_scores.data.cpu().numpy(),
+    #                     self._gt_boxes.data.cpu().numpy(), cfg.current_img_is_flipped, cfg.current_img_name, cfg.current_im_info[1],
+    #                     cfg.current_im_info[2])
     self._proposal_targets['rois'] = rois
     self._proposal_targets['labels'] = labels.long()
     self._proposal_targets['bbox_targets'] = bbox_targets

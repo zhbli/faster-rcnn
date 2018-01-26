@@ -23,3 +23,38 @@ Change list:
 - [Add_function] filter_fg_rois_by_attention
 - [Add_function] get_IoU
 
+# v1.1
+Visualize sampled RoIs.
+
+Usage: Run `trainval_net.py`
+
+Change list:
+- [Add_function] visualize_rois
+- [Modify_function] _proposal_target_layer
+
+Result: (bad)
+AP for aeroplane = 0.6911
+AP for bicycle = 0.7587
+AP for bird = 0.6013
+AP for boat = 0.4808
+AP for bottle = 0.3492
+AP for bus = 0.7271
+AP for car = 0.7611
+AP for cat = 0.7362
+AP for chair = 0.4278
+AP for cow = 0.7119
+AP for diningtable = 0.6256
+AP for dog = 0.7507
+AP for horse = 0.7994
+AP for motorbike = 0.7049
+AP for person = 0.6645
+AP for pottedplant = 0.3571
+AP for sheep = 0.6358
+AP for sofa = 0.6296
+AP for train = 0.7503
+AP for tvmonitor = 0.5998
+Mean AP = 0.6381
+
+Bug:
+While the IoU is accurate, the distribution of RoIs is not uniform around ground_truth.
+
