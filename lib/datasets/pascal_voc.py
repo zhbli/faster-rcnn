@@ -32,13 +32,14 @@ class pascal_voc(imdb):
     self._image_set = image_set
     self._devkit_path = self._get_default_path()
     self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
-    self._classes = ('__background__',  # always index 0
-                     'aeroplane', 'bicycle', 'bird', 'boat',
-                     'bottle', 'bus', 'car', 'cat', 'chair',
-                     'cow', 'diningtable', 'dog', 'horse',
-                     'motorbike', 'person', 'pottedplant',
-                     'sheep', 'sofa', 'train', 'tvmonitor')
-    self._class_to_ind = dict(list(zip(self.classes, list(range(self.num_classes)))))
+    self._classes = ('__background__', 'pottedplant')
+    # self._classes = ('__background__',  # always index 0
+    #                  'aeroplane', 'bicycle', 'bird', 'boat',
+    #                  'bottle', 'bus', 'car', 'cat', 'chair',
+    #                  'cow', 'diningtable', 'dog', 'horse',
+    #                  'motorbike', 'person', 'pottedplant',
+    #                  'sheep', 'sofa', 'train', 'tvmonitor')
+    # self._class_to_ind = dict(list(zip(self.classes, list(range(self.num_classes)))))
     self._image_ext = '.jpg'
     self._image_index = self._load_image_set_index()
     # Default to roidb handler
@@ -92,7 +93,7 @@ class pascal_voc(imdb):
     """
     Return the default path where PASCAL VOC is expected to be installed.
     """
-    return os.path.join(cfg.DATA_DIR, 'VOCdevkit' + self._year)
+    return os.path.join('/data/zhbli', 'VOCdevkit')
 
   def gt_roidb(self):
     """
@@ -100,22 +101,20 @@ class pascal_voc(imdb):
 
     This function loads/saves from/to a cache file to speed up future calls.
     """
-    cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
-    if os.path.exists(cache_file):
-      with open(cache_file, 'rb') as fid:
-        try:
-          roidb = pickle.load(fid)
-        except:
-          roidb = pickle.load(fid, encoding='bytes')
-      print('{} gt roidb loaded from {}'.format(self.name, cache_file))
-      return roidb
-
+    # cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
+    # if os.path.exists(cache_file):
+    #   with open(cache_file, 'rb') as fid:
+    #     try:
+    #       roidb = pickle.load(fid)
+    #     except:
+    #       roidb = pickle.load(fid, encoding='bytes')
+    #   print('{} gt roidb loaded from {}'.format(self.name, cache_file))
+    #   return roidb
     gt_roidb = [self._load_pascal_annotation(index)
                 for index in self.image_index]
-    with open(cache_file, 'wb') as fid:
-      pickle.dump(gt_roidb, fid, pickle.HIGHEST_PROTOCOL)
-    print('wrote gt roidb to {}'.format(cache_file))
-
+    # with open(cache_file, 'wb') as fid:
+    #   pickle.dump(gt_roidb, fid, pickle.HIGHEST_PROTOCOL)
+    # print('wrote gt roidb to {}'.format(cache_file))
     return gt_roidb
 
   def rpn_roidb(self):
@@ -163,13 +162,17 @@ class pascal_voc(imdb):
 
     # Load object bounding boxes into a data frame.
     for ix, obj in enumerate(objs):
+      if obj.find('name').text.lower().strip() == 'pottedplant':
+          cls = 1
+      else:
+          cls = 0
+          continue
       bbox = obj.find('bndbox')
       # Make pixel indexes 0-based
       x1 = float(bbox.find('xmin').text) - 1
       y1 = float(bbox.find('ymin').text) - 1
       x2 = float(bbox.find('xmax').text) - 1
       y2 = float(bbox.find('ymax').text) - 1
-      cls = self._class_to_ind[obj.find('name').text.lower().strip()]
       boxes[ix, :] = [x1, y1, x2, y2]
       gt_classes[ix] = cls
       overlaps[ix, cls] = 1.0
