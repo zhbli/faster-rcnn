@@ -104,8 +104,9 @@ def _compute_targets(ex_rois, gt_rois, labels):
 
 
 def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_image, num_classes):
-  """Generate a random sample of RoIs comprising foreground and background
-  examples.
+  """
+  Generate a random sample of RoIs comprising foreground and background examples.
+  If the gt is pottedplant, we should get roi outside the gt; if the gt is leaf, the roi will be inside the gt.
   """
 
   """Args:
@@ -117,7 +118,6 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   """
 
   # declare variables
-  time_start = time.time()
   img_width = float(cfg.current_im_info[1])
   img_height = float(cfg.current_im_info[0])
   #
@@ -132,7 +132,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   selected_pottedplant_gt = gt_boxes_np[selected_pottedplant_gt_idx]
   #
 
-  #get width and height of every selected gt_box
+  # get width and height of every selected gt_box
   width_selected_pottedplant_gt = (selected_pottedplant_gt[:, 2] - selected_pottedplant_gt[:, 0]).reshape(-1, 1)  # x2-x1
   height_selected_pottedplant_gt = (selected_pottedplant_gt[:, 3] - selected_pottedplant_gt[:, 1]).reshape(-1, 1)
   #
@@ -153,17 +153,44 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   pottedplant_rois[:, 3] = np.minimum(img_height, pottedplant_rois[:, 3])  # y2
   #
 
+  # select 64 gts whose cls_name is leaf
+  selected_leaf_gt_idx = np.random.choice(np.where(gt_boxes_np0[:, -1] == 1)[0], fg_rois_per_image)
+  selected_leaf_gt = gt_boxes_np[selected_leaf_gt_idx]
+  #
+
+  # get width and height of every selected gt_box
+  width_selected_leaf_gt = \
+      (selected_leaf_gt[:, 2] - selected_leaf_gt[:, 0]).reshape(-1, 1)  # x2-x1
+  height_selected_leaf_gt = (selected_leaf_gt[:, 3] - selected_leaf_gt[:, 1]).reshape(-1, 1)
+  #
+
+  # get the width and height delta. delta is used to generate rois
+  delta = np.random.rand(fg_rois_per_image, 4) * 0.14  # [0, 0.14)
+  delta = delta * np.concatenate((width_selected_leaf_gt, height_selected_leaf_gt,
+                                  -width_selected_leaf_gt, -height_selected_leaf_gt), axis=1)
+  #
+
+  # generate 64 leaf rois
+  leaf_rois = selected_leaf_gt + delta
+  #
+
+  # manage the boundary
+  leaf_rois[:, 0] = np.maximum(0, leaf_rois[:, 0])  # x1
+  leaf_rois[:, 1] = np.maximum(0, leaf_rois[:, 1])  # y1
+  leaf_rois[:, 2] = np.minimum(img_width, leaf_rois[:, 2])  # x2
+  leaf_rois[:, 3] = np.minimum(img_height, leaf_rois[:, 3])  # y2
+  #
+
   # get bg_rois
   ## overlaps: (rois x gt_boxes)
   overlaps = bbox_overlaps(
     all_rois[:, 1:5].data,
     gt_boxes[:, :4].data)
   max_overlaps, gt_assignment = overlaps.max(1)
-  labels = gt_boxes[gt_assignment, [4]]
   ##
   ## Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
   bg_inds = ((max_overlaps < cfg.TRAIN.BG_THRESH_HI) + (max_overlaps >= cfg.TRAIN.BG_THRESH_LO) == 2).nonzero().view(-1)
-  bg_rois_per_image = rois_per_image - fg_rois_per_image
+  bg_rois_per_image = rois_per_image - fg_rois_per_image * 2
   to_replace = bg_inds.numel() < bg_rois_per_image
   bg_inds = bg_inds[torch.from_numpy(npr.choice(np.arange(0, bg_inds.numel()), size=int(bg_rois_per_image), replace=to_replace)).long().cuda()]
   bg_rois = all_rois[bg_inds].contiguous()
@@ -172,7 +199,8 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
 
   # Get Variable: rois, labels and roi_scores
   ## get rois
-  fg_rois = torch.from_numpy(pottedplant_rois).type(torch.cuda.FloatTensor)
+  fg_rois = np.append(pottedplant_rois, leaf_rois, axis=0)
+  fg_rois = torch.from_numpy(fg_rois).type(torch.cuda.FloatTensor)
   fg_rois = torch.cat((torch.zeros(len(fg_rois), 1).type(torch.cuda.FloatTensor), fg_rois), 1)  # add 0s at first column.
   fg_rois = Variable(fg_rois, requires_grad=True)
   rois = torch.cat((fg_rois, bg_rois), 0)
@@ -180,6 +208,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   ## get labels
   labels_np = np.zeros(int(rois_per_image))
   labels_np[0:fg_rois_per_image] = 1
+  labels_np[fg_rois_per_image: 2*fg_rois_per_image] = 2
   labels = Variable(torch.from_numpy(labels_np).type(torch.cuda.FloatTensor))
   ##
   ## get roi_scores
@@ -188,14 +217,13 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   #
 
   # do something
-  temp_gt = np.tile(selected_pottedplant_gt, (4, 1))
-  temp_gt = torch.from_numpy(temp_gt).type(torch.cuda.FloatTensor)
+  temp_gt_np = np.append(selected_pottedplant_gt, selected_leaf_gt, axis=0)
+  temp_gt_np = np.tile(temp_gt_np, (4,1))
+  temp_gt = torch.from_numpy(temp_gt_np).type(torch.cuda.FloatTensor)
   bbox_target_data = _compute_targets(
     rois[:, 1:5].data, temp_gt, labels.data)
   bbox_targets, bbox_inside_weights = \
     _get_bbox_regression_labels(bbox_target_data, num_classes)
-  time_end = time.time()
-  # print('_sample_rois() cost {:f} s.'.format(time_end - time_start))
   #
 
   """return:

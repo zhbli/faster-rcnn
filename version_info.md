@@ -64,3 +64,22 @@ Usage: None
 
 Change list:
 - [Modify_file] pascal_voc.py
+
+# v3.2
+Train net with 3 classes: background, pottedplant and leaf.
+
+Usage: Run `trainval_net.py`
+
+Change list:   
+- [Modify_function] _sample_rois.py
+
+Result:
+(Sample 64 pottedplant rois and 64 leaf rois)  
+The error is stable below 0.3.
+AP for pottedplant = 0.2837
+AP for leaf = 0.0000
+
+(Sample 32 pottedplant rois and 32 leaf rois)
+The error is stable below 0.1.
+AP for pottedplant = 0.2995
+AP for leaf = 0.0000
