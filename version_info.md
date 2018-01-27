@@ -100,3 +100,8 @@ Fix bugs in v3.2.
 
 Change list:  
 - [Modify_function] _sample_rois.py
+
+Result:
+(Sample 32 pottedplant rois and 32 leaf rois)
+AP for pottedplant = 0.3046
+AP for leaf = 0.0000
