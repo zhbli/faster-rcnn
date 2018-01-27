@@ -13,5 +13,15 @@ Change list:
 - [Modify_parameters] iters=2600, TRAIN.STEPSIZE=1800, imdb=voc_2007_zhbli_pottedplant_untruncated_easy_trainval
 
 Result:
+(not good, may because iter_num is too small. Or say, 2600 iters is not enough to train the RPN net)
 AP for pottedplant = 0.3283
 Mean AP = 0.3283
+
+# v2.0
+Sample rois manually.
+
+Usage: Run `trainval_net.py --weight /home/zhbli/Project/fast-rcnn/data/imagenet_weights/vgg16.pth --imdb voc_2007_zhbli_pottedplant_untruncated_easy_trainval --imdbval voc_2007_test --iters 5200 --cfg experiments/cfgs/vgg16.yml --net vgg16 --set ANCHOR_SCALES [8,16,32] ANCHOR_RATIOS [0.5,1,2] TRAIN.STEPSIZE [3600]`
+
+Change list:
+- [Modify_function] _sample_rois
+- [Modify_parameters] iters=5200, TRAIN.STEPSIZE=3600

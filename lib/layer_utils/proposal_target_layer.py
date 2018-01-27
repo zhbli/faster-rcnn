@@ -13,6 +13,7 @@ import numpy.random as npr
 from model.config import cfg
 from model.bbox_transform import bbox_transform
 from utils.bbox import bbox_overlaps
+import time
 
 
 import torch
@@ -106,51 +107,102 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   """Generate a random sample of RoIs comprising foreground and background
   examples.
   """
-  # overlaps: (rois x gt_boxes)
+
+  """Args:
+      all_rois: Variable, FloatTensor, [roi_num, 5], [0, x1, y1, x2, y2]
+      gt_boxes: Variable, [gt_num, 5], [x1, y1, x2, y2, class_id]
+      fg_rois_per_image: int, 64
+      rois_per_image: float, 256.0
+      num_classes: int, 2 (or 3)
+  """
+
+  # declare variables
+  time_start = time.time()
+  img_width = float(cfg.current_im_info[1])
+  img_height = float(cfg.current_im_info[0])
+  #
+
+  # convert Variable to numpy
+  gt_boxes_np0 = gt_boxes.data.cpu().numpy()
+  gt_boxes_np = gt_boxes_np0[:,:-1]
+  #
+
+  # select 64 gts whose cls_name is pottedplant
+  selected_pottedplant_gt_idx = np.random.choice(np.where(gt_boxes_np0[:,-1] == 1)[0], fg_rois_per_image)
+  selected_pottedplant_gt = gt_boxes_np[selected_pottedplant_gt_idx]
+  #
+
+  #get width and height of every selected gt_box
+  width_selected_pottedplant_gt = (selected_pottedplant_gt[:, 2] - selected_pottedplant_gt[:, 0]).reshape(-1, 1)  # x2-x1
+  height_selected_pottedplant_gt = (selected_pottedplant_gt[:, 3] - selected_pottedplant_gt[:, 1]).reshape(-1, 1)
+  #
+
+  # get the width and height delta. delta is used to generate rois
+  delta = np.random.rand(fg_rois_per_image, 4) * 0.2  # [0, 0.2)
+  delta = delta * np.concatenate((-width_selected_pottedplant_gt, -height_selected_pottedplant_gt, width_selected_pottedplant_gt, height_selected_pottedplant_gt), axis = 1)
+  #
+
+  # generate 64 pottedplant rois
+  pottedplant_rois = selected_pottedplant_gt + delta
+  #
+
+  # manage the boundary
+  pottedplant_rois[:, 0] = np.maximum(0, pottedplant_rois[:, 0])  # x1
+  pottedplant_rois[:, 1] = np.maximum(0, pottedplant_rois[:, 1])  # y1
+  pottedplant_rois[:, 2] = np.minimum(img_width, pottedplant_rois[:, 2])  # x2
+  pottedplant_rois[:, 3] = np.minimum(img_height, pottedplant_rois[:, 3])  # y2
+  #
+
+  # get bg_rois
+  ## overlaps: (rois x gt_boxes)
   overlaps = bbox_overlaps(
     all_rois[:, 1:5].data,
     gt_boxes[:, :4].data)
   max_overlaps, gt_assignment = overlaps.max(1)
   labels = gt_boxes[gt_assignment, [4]]
-
-  # Select foreground RoIs as those with >= FG_THRESH overlap
-  fg_inds = (max_overlaps >= cfg.TRAIN.FG_THRESH).nonzero().view(-1)
-  # Guard against the case when an image has fewer than fg_rois_per_image
-  # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
+  ##
+  ## Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
   bg_inds = ((max_overlaps < cfg.TRAIN.BG_THRESH_HI) + (max_overlaps >= cfg.TRAIN.BG_THRESH_LO) == 2).nonzero().view(-1)
+  bg_rois_per_image = rois_per_image - fg_rois_per_image
+  to_replace = bg_inds.numel() < bg_rois_per_image
+  bg_inds = bg_inds[torch.from_numpy(npr.choice(np.arange(0, bg_inds.numel()), size=int(bg_rois_per_image), replace=to_replace)).long().cuda()]
+  bg_rois = all_rois[bg_inds].contiguous()
+  ##
+  #
 
-  # Small modification to the original version where we ensure a fixed number of regions are sampled
-  if fg_inds.numel() > 0 and bg_inds.numel() > 0:
-    fg_rois_per_image = min(fg_rois_per_image, fg_inds.numel())
-    fg_inds = fg_inds[torch.from_numpy(npr.choice(np.arange(0, fg_inds.numel()), size=int(fg_rois_per_image), replace=False)).long().cuda()]
-    bg_rois_per_image = rois_per_image - fg_rois_per_image
-    to_replace = bg_inds.numel() < bg_rois_per_image
-    bg_inds = bg_inds[torch.from_numpy(npr.choice(np.arange(0, bg_inds.numel()), size=int(bg_rois_per_image), replace=to_replace)).long().cuda()]
-  elif fg_inds.numel() > 0:
-    to_replace = fg_inds.numel() < rois_per_image
-    fg_inds = fg_inds[torch.from_numpy(npr.choice(np.arange(0, fg_inds.numel()), size=int(rois_per_image), replace=to_replace)).long().cuda()]
-    fg_rois_per_image = rois_per_image
-  elif bg_inds.numel() > 0:
-    to_replace = bg_inds.numel() < rois_per_image
-    bg_inds = bg_inds[torch.from_numpy(npr.choice(np.arange(0, bg_inds.numel()), size=int(rois_per_image), replace=to_replace)).long().cuda()]
-    fg_rois_per_image = 0
-  else:
-    import pdb
-    pdb.set_trace()
+  # Get Variable: rois, labels and roi_scores
+  ## get rois
+  fg_rois = torch.from_numpy(pottedplant_rois).type(torch.cuda.FloatTensor)
+  fg_rois = torch.cat((torch.zeros(len(fg_rois), 1).type(torch.cuda.FloatTensor), fg_rois), 1)  # add 0s at first column.
+  fg_rois = Variable(fg_rois, requires_grad=True)
+  rois = torch.cat((fg_rois, bg_rois), 0)
+  ##
+  ## get labels
+  labels_np = np.zeros(int(rois_per_image))
+  labels_np[0:fg_rois_per_image] = 1
+  labels = Variable(torch.from_numpy(labels_np).type(torch.cuda.FloatTensor))
+  ##
+  ## get roi_scores
+  roi_scores = Variable(torch.zeros(256, 1).type(torch.cuda.FloatTensor), requires_grad=True)
+  ##
+  #
 
-  # The indices that we're selecting (both fg and bg)
-  keep_inds = torch.cat([fg_inds, bg_inds], 0)
-  # Select sampled values from various arrays:
-  labels = labels[keep_inds].contiguous()
-  # Clamp labels for the background RoIs to 0
-  labels[int(fg_rois_per_image):] = 0
-  rois = all_rois[keep_inds].contiguous()
-  roi_scores = all_scores[keep_inds].contiguous()
-
+  # do something
+  temp_gt = np.tile(selected_pottedplant_gt, (4, 1))
+  temp_gt = torch.from_numpy(temp_gt).type(torch.cuda.FloatTensor)
   bbox_target_data = _compute_targets(
-    rois[:, 1:5].data, gt_boxes[gt_assignment[keep_inds]][:, :4].data, labels.data)
-
+    rois[:, 1:5].data, temp_gt, labels.data)
   bbox_targets, bbox_inside_weights = \
     _get_bbox_regression_labels(bbox_target_data, num_classes)
+  time_end = time.time()
+  # print('_sample_rois() cost {:f} s.'.format(time_end - time_start))
+  #
 
+  """return:
+      labels: Variable, torch.cuda.FloatTensor of size 256, require_grad=False
+      rois: Variable, [256, 5], first column are all zeros, require_grad=True
+      roi_scores: no use. Variable, [256,1]
+      bbox_targets: no use. FloatTensor, [256, 84]
+      bbox_inside_weights: no use. FloatTensor, [256, 84]
+  """
   return labels, rois, roi_scores, bbox_targets, bbox_inside_weights
