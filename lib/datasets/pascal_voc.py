@@ -32,13 +32,7 @@ class pascal_voc(imdb):
     self._image_set = image_set
     self._devkit_path = self._get_default_path()
     self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
-    self._classes = ('__background__', 'pottedplant')
-    # self._classes = ('__background__',  # always index 0
-    #                  'aeroplane', 'bicycle', 'bird', 'boat',
-    #                  'bottle', 'bus', 'car', 'cat', 'chair',
-    #                  'cow', 'diningtable', 'dog', 'horse',
-    #                  'motorbike', 'person', 'pottedplant',
-    #                  'sheep', 'sofa', 'train', 'tvmonitor')
+    self._classes = ('__background__', 'pottedplant', 'leaf')
     self._class_to_ind = dict(list(zip(self.classes, list(range(self.num_classes)))))
     self._image_ext = '.jpg'
     self._image_index = self._load_image_set_index()
@@ -46,14 +40,15 @@ class pascal_voc(imdb):
     self._roidb_handler = self.gt_roidb
     self._salt = str(uuid.uuid4())
     self._comp_id = 'comp4'
-
+    # load leaf gts
+    f = open('tools/leaf_gts.pkl', 'rb')
+    self.leaf_gts = pickle.load(f)
     # PASCAL specific config options
     self.config = {'cleanup': True,
                    'use_salt': True,
                    'use_diff': use_diff,
                    'matlab_eval': False,
                    'rpn_file': None}
-
     assert os.path.exists(self._devkit_path), \
       'VOCdevkit path does not exist: {}'.format(self._devkit_path)
     assert os.path.exists(self._data_path), \
@@ -173,6 +168,17 @@ class pascal_voc(imdb):
       gt_classes[ix] = cls
       overlaps[ix, cls] = 1.0
       seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
+
+    # load leaf_gts
+    if index in self.leaf_gts.keys():
+        num_leaf = self.leaf_gts[index].shape[0]
+        leaf_gt_classes = np.ones((num_leaf), dtype=np.int32) * 2
+        leaf_overlaps = np.tile(np.array([0, 0, 1]).astype(np.float32), (num_leaf, 1))
+        leaf_seg_areas = np.zeros((num_leaf), dtype=np.float32)
+        boxes = np.append(boxes, self.leaf_gts[index], axis=0)
+        gt_classes = np.append(gt_classes, leaf_gt_classes)
+        overlaps = np.append(overlaps, leaf_overlaps)
+        seg_areas = np.append(seg_areas, leaf_seg_areas)
 
     overlaps = scipy.sparse.csr_matrix(overlaps)
 
