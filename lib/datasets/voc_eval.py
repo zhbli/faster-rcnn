@@ -107,7 +107,6 @@ def voc_eval(detpath,
   with open(imagesetfile, 'r') as f:
     lines = f.readlines()
   imagenames = [x.strip() for x in lines]
-
   if not os.path.isfile(cachefile):
     # load annotations
     recs = {}
@@ -143,35 +142,29 @@ def voc_eval(detpath,
     class_recs[imagename] = {'bbox': bbox,
                              'difficult': difficult,
                              'det': det}
-
   # read dets
   detfile = detpath.format(classname)
   with open(detfile, 'r') as f:
     lines = f.readlines()
-
   splitlines = [x.strip().split(' ') for x in lines]
   image_ids = [x[0] for x in splitlines]
   confidence = np.array([float(x[1]) for x in splitlines])
   BB = np.array([[float(z) for z in x[2:]] for x in splitlines])
-
   nd = len(image_ids)
   tp = np.zeros(nd)
   fp = np.zeros(nd)
-
   if BB.shape[0] > 0:
     # sort by confidence
     sorted_ind = np.argsort(-confidence)
     sorted_scores = np.sort(-confidence)
     BB = BB[sorted_ind, :]
     image_ids = [image_ids[x] for x in sorted_ind]
-
     # go down dets and mark TPs and FPs
     for d in range(nd):
       R = class_recs[image_ids[d]]
       bb = BB[d, :].astype(float)
       ovmax = -np.inf
       BBGT = R['bbox'].astype(float)
-
       if BBGT.size > 0:
         # compute overlaps
         # intersection
@@ -182,16 +175,13 @@ def voc_eval(detpath,
         iw = np.maximum(ixmax - ixmin + 1., 0.)
         ih = np.maximum(iymax - iymin + 1., 0.)
         inters = iw * ih
-
         # union
         uni = ((bb[2] - bb[0] + 1.) * (bb[3] - bb[1] + 1.) +
                (BBGT[:, 2] - BBGT[:, 0] + 1.) *
                (BBGT[:, 3] - BBGT[:, 1] + 1.) - inters)
-
         overlaps = inters / uni
         ovmax = np.max(overlaps)
         jmax = np.argmax(overlaps)
-
       if ovmax > ovthresh:
         if not R['difficult'][jmax]:
           if not R['det'][jmax]:
@@ -202,6 +192,8 @@ def voc_eval(detpath,
       else:
         fp[d] = 1.
 
+
+
   # compute precision recall
   fp = np.cumsum(fp)
   tp = np.cumsum(tp)
@@ -210,5 +202,4 @@ def voc_eval(detpath,
   # ground truth
   prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
   ap = voc_ap(rec, prec, use_07_metric)
-
   return rec, prec, ap
