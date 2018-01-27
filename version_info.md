@@ -48,3 +48,11 @@ The error is stable below 0.1.
 AP for pottedplant = 0.2935
 Mean AP = 0.2935
 (The bug in v2.0 did not reduce ap)
+
+# v3.0
+Annotate bbox.
+
+Usage: Run `annotate_bbox.py`
+
+Change list:
+- [Add_file] annotate_bbox.py
