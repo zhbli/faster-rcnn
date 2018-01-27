@@ -79,6 +79,8 @@ class RoIDataLayer(object):
     separate process and made available through self._blob_queue.
     """
     db_inds = self._get_next_minibatch_inds()
+    cfg.current_img_name = self._roidb[db_inds[0]]['image'][-10:-4]
+    cfg.current_img_is_flipped = self._roidb[db_inds[0]]['flipped']
     minibatch_db = [self._roidb[i] for i in db_inds]
     return get_minibatch(minibatch_db, self._num_classes)
       

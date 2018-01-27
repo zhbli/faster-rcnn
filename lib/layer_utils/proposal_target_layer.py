@@ -154,7 +154,7 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   #
 
   # select 64 gts whose cls_name is leaf
-  selected_leaf_gt_idx = np.random.choice(np.where(gt_boxes_np0[:, -1] == 1)[0], fg_rois_per_image)
+  selected_leaf_gt_idx = np.random.choice(np.where(gt_boxes_np0[:, -1] == 2)[0], fg_rois_per_image)
   selected_leaf_gt = gt_boxes_np[selected_leaf_gt_idx]
   #
 

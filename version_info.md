@@ -66,9 +66,12 @@ Change list:
 - [Modify_file] pascal_voc.py
 
 # v3.2
+Existing bug:  
+- Sample leaf rois wrongly.
+
 Train net with 3 classes: background, pottedplant and leaf.
 
-Usage: Run `trainval_net.py`
+Usage: Run `trainval_net.py --weight /home/zhbli/Project/fast-rcnn/data/imagenet_weights/vgg16.pth --imdb voc_2007_zhbli_pottedplant_untruncated_easy_trainval --imdbval voc_2007_test --iters 5200 --cfg experiments/cfgs/vgg16.yml --net vgg16 --set ANCHOR_SCALES [8,16,32] ANCHOR_RATIOS [0.5,1,2] TRAIN.STEPSIZE [3600]`
 
 Change list:   
 - [Modify_function] _sample_rois.py
@@ -83,3 +86,17 @@ AP for leaf = 0.0000
 The error is stable below 0.1.
 AP for pottedplant = 0.2995
 AP for leaf = 0.0000
+
+# v3.3
+Visualize rois from _sample_rois().
+
+Usage: Run `trainval_net.py  --weight /home/zhbli/Project/fast-rcnn/data/imagenet_weights/vgg16.pth --imdb voc_2007_zhbli_pottedplant_untruncated_easy_trainval --imdbval voc_2007_test --iters 5200 --cfg experiments/cfgs/vgg16.yml --net vgg16 --set ANCHOR_SCALES [8,16,32] ANCHOR_RATIOS [0.5,1,2] TRAIN.STEPSIZE [3600]`
+
+Change list:
+- [Add_function] visualize_rois
+
+# v3.4
+Fix bugs in v3.2.
+
+Change list:  
+- [Modify_function] _sample_rois.py
