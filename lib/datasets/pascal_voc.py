@@ -39,7 +39,7 @@ class pascal_voc(imdb):
     #                  'cow', 'diningtable', 'dog', 'horse',
     #                  'motorbike', 'person', 'pottedplant',
     #                  'sheep', 'sofa', 'train', 'tvmonitor')
-    # self._class_to_ind = dict(list(zip(self.classes, list(range(self.num_classes)))))
+    self._class_to_ind = dict(list(zip(self.classes, list(range(self.num_classes)))))
     self._image_ext = '.jpg'
     self._image_index = self._load_image_set_index()
     # Default to roidb handler
@@ -147,7 +147,7 @@ class pascal_voc(imdb):
     if not self.config['use_diff']:
       # Exclude the samples labeled as difficult
       non_diff_objs = [
-        obj for obj in objs if int(obj.find('difficult').text) == 0]
+        obj for obj in objs if int(obj.find('difficult').text) == 0 and obj.find('name').text.lower().strip() == 'pottedplant']
       # if len(non_diff_objs) != len(objs):
       #     print 'Removed {} difficult objects'.format(
       #         len(objs) - len(non_diff_objs))
@@ -162,17 +162,13 @@ class pascal_voc(imdb):
 
     # Load object bounding boxes into a data frame.
     for ix, obj in enumerate(objs):
-      if obj.find('name').text.lower().strip() == 'pottedplant':
-          cls = 1
-      else:
-          cls = 0
-          continue
       bbox = obj.find('bndbox')
       # Make pixel indexes 0-based
       x1 = float(bbox.find('xmin').text) - 1
       y1 = float(bbox.find('ymin').text) - 1
       x2 = float(bbox.find('xmax').text) - 1
       y2 = float(bbox.find('ymax').text) - 1
+      cls = self._class_to_ind[obj.find('name').text.lower().strip()]
       boxes[ix, :] = [x1, y1, x2, y2]
       gt_classes[ix] = cls
       overlaps[ix, cls] = 1.0
