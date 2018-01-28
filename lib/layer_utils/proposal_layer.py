@@ -32,6 +32,8 @@ def proposal_layer(rpn_cls_prob, rpn_bbox_pred, im_info, cfg_key, _feat_stride, 
   scores = scores.contiguous().view(-1, 1)
   proposals = bbox_transform_inv(anchors, rpn_bbox_pred)
   proposals = clip_boxes(proposals, im_info[:2])
+  cfg.current_whole_rpn_res = proposals.data.cpu().numpy()
+  cfg.current_whole_rpn_res = cfg.current_whole_rpn_res / cfg.current_img_score
 
   # Pick the top region proposals
   scores, order = scores.view(-1).sort(descending=True)

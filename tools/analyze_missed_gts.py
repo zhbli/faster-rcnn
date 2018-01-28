@@ -84,14 +84,23 @@ if __name__ == '__main__':
         det_boxes = boxes[:, 4 * cls_id:4 * (cls_id + 1)]
         det_scores = scores[:, cls_id]
         ##
-        ## calculate IoU between 300 rois from RPN and missed_gts
+        ## calculate IoU between all rois from RPN and missed_gts
         for i in range(current_missed_gt.shape[0]):
-            IoU = get_IoU(current_missed_gt[i, :], rois)
+            IoU = get_IoU(current_missed_gt[i, :], cfg.current_whole_rpn_res)
             if max(IoU) > 0.5:
                 num_IoU_greater_than_half = num_IoU_greater_than_half + 1
-                print('max IoU = {}, score = {}'.format(max(IoU), det_scores[np.argmax(IoU)]))
+                print('max IoU = {}'.format(max(IoU)))
             else:
                 num_IoU_less_than_half = num_IoU_less_than_half + 1
+                ##
+        ## calculate IoU between 300 rois from RPN and missed_gts
+        # for i in range(current_missed_gt.shape[0]):
+        #     IoU = get_IoU(current_missed_gt[i, :], rois)
+        #     if max(IoU) > 0.5:
+        #         num_IoU_greater_than_half = num_IoU_greater_than_half + 1
+        #         print('max IoU = {}, score = {}'.format(max(IoU), det_scores[np.argmax(IoU)]))
+        #     else:
+        #         num_IoU_less_than_half = num_IoU_less_than_half + 1
         ##
         ## calculate IoU between final detect result and missed_gts
         # for i in range(current_missed_gt.shape[0]):
