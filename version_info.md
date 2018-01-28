@@ -105,3 +105,20 @@ Result:
 (Sample 32 pottedplant rois and 32 leaf rois)
 AP for pottedplant = 0.3046
 AP for leaf = 0.0000
+
+# v3.5
+Get result on trainval dataset (180 images).
+
+Usage: Run `test_net.py --imdb voc_2007_zhbli_pottedplant_untruncated_easy_trainval --model /home/zhbli/Project/faster-rcnn/output/vgg16/voc_2007_zhbli_pottedplant_untruncated_easy_trainval/default/vgg16_faster_rcnn_iter_5200.pth --cfg experiments/cfgs/vgg16.yml --net vgg16 --set ANCHOR_SCALES [8,16,32] ANCHOR_RATIOS [0.5,1,2]`
+
+Change list:
+- [Modify_function] voc_eval
+
+Result:
+(5200 iters)
+AP for pottedplant = 0.8971
+AP for leaf = 0.4742
+
+(14000 iters)
+AP for pottedplant = 0.9086
+AP for leaf = 0.6161
