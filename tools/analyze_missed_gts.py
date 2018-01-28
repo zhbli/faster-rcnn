@@ -37,8 +37,10 @@ if __name__ == '__main__':
     for image_name in im_names:
         ## Load the demo image
         print('detect img {}'.format(image_name))
-        im_file = os.path.join('/data/zhbli/VOCdevkit/VOC2007/JPEGImages', image_name)
+        im_file = '/data/zhbli/VOCdevkit/VOC2007/JPEGImages/{}.jpg'.format(image_name)
         im = cv2.imread(im_file)
-        scores, boxes = im_detect_(net, im)
+        assert im is not None, 'no img: {}'.format(im_file)
+        scores, boxes = im_detect(net, im)
+        exit()
         ##
     #
