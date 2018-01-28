@@ -127,6 +127,11 @@ def voc_eval(detpath,
       except:
         recs = pickle.load(f, encoding='bytes')
 
+  # declare vars
+  det_results = {}
+  missed_gt = {}
+  #
+
   # extract gt objects for this class
   class_recs = {}
   npos = 0
@@ -142,6 +147,15 @@ def voc_eval(detpath,
     class_recs[imagename] = {'bbox': bbox,
                              'difficult': difficult,
                              'det': det}
+    ## get ground truth info
+    det_results[imagename] = {}
+    det_results[imagename]['gt'] = {}
+    det_results[imagename]['gt']['bbox'] = bbox
+    det_results[imagename]['gt']['difficult'] = difficult
+    det_results[imagename]['gt']['detected'] = det
+    ##
+  #
+
   # read dets
   detfile = detpath.format(classname)
   with open(detfile, 'r') as f:
@@ -187,12 +201,28 @@ def voc_eval(detpath,
           if not R['det'][jmax]:
             tp[d] = 1.
             R['det'][jmax] = 1
+            det_results[image_ids[d]]['gt']['detected'][jmax] = 1  # the jmax'th gt is detected.
           else:
             fp[d] = 1.
       else:
         fp[d] = 1.
 
+  # get missed gts
+  for i in det_results:  # for every img
+      img_name = i
+      if not det_results.__contains__(img_name):
+          continue
+      gt_num = det_results[img_name]['gt']['bbox'].shape[0]
+      if gt_num == 0:
+          continue
+      for j in range(gt_num):
+          bbox = det_results[img_name]['gt']['bbox'][j]
+          difficult = det_results[img_name]['gt']['difficult'][j]
+          detected = det_results[img_name]['gt']['detected'][j]
+          if detected == 0 and difficult == 0:  #find missed gt
+              pass
 
+  #
 
   # compute precision recall
   fp = np.cumsum(fp)

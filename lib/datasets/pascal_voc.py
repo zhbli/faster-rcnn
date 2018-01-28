@@ -184,8 +184,7 @@ class pascal_voc(imdb):
             'seg_areas': seg_areas}
 
   def _get_comp_id(self):
-    comp_id = (self._comp_id + '_' + self._salt if self.config['use_salt']
-               else self._comp_id)
+    comp_id = 'comp4_560d4dbc-9309-463e-83e4-89e6f7773128'
     return comp_id
 
   def _get_voc_results_file_template(self):
@@ -245,8 +244,6 @@ class pascal_voc(imdb):
         use_07_metric=use_07_metric, use_diff=self.config['use_diff'])
       aps += [ap]
       print(('AP for {} = {:.4f}'.format(cls, ap)))
-      with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
-        pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
     print(('Mean AP = {:.4f}'.format(np.mean(aps))))
     print('~~~~~~~~')
     print('Results:')
@@ -278,16 +275,9 @@ class pascal_voc(imdb):
     status = subprocess.call(cmd, shell=True)
 
   def evaluate_detections(self, all_boxes, output_dir):
-    self._write_voc_results_file(all_boxes)
     self._do_python_eval(output_dir)
     if self.config['matlab_eval']:
       self._do_matlab_eval(output_dir)
-    if self.config['cleanup']:
-      for cls in self._classes:
-        if cls == '__background__':
-          continue
-        filename = self._get_voc_results_file_template().format(cls)
-        os.remove(filename)
 
   def competition_mode(self, on):
     if on:
