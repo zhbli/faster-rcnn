@@ -7,6 +7,7 @@ from model.config import cfg
 from model.test import im_detect
 from model.nms_wrapper import nms
 from utils.timer import Timer
+from demo import vis_detections
 import numpy as np
 import os, cv2
 from nets.vgg16 import vgg16
@@ -85,14 +86,14 @@ if __name__ == '__main__':
         det_scores = scores[:, cls_id]
         ##
         ## calculate IoU between all rois from RPN and missed_gts
-        for i in range(current_missed_gt.shape[0]):
-            IoU = get_IoU(current_missed_gt[i, :], cfg.current_whole_rpn_res)
-            if max(IoU) > 0.5:
-                num_IoU_greater_than_half = num_IoU_greater_than_half + 1
-                print('max IoU = {}'.format(max(IoU)))
-            else:
-                num_IoU_less_than_half = num_IoU_less_than_half + 1
-                ##
+        # for i in range(current_missed_gt.shape[0]):
+        #     IoU = get_IoU(current_missed_gt[i, :], cfg.current_whole_rpn_res)
+        #     if max(IoU) > 0.5:
+        #         num_IoU_greater_than_half = num_IoU_greater_than_half + 1
+        #         print('max IoU = {}'.format(max(IoU)))
+        #     else:
+        #         num_IoU_less_than_half = num_IoU_less_than_half + 1
+        ##
         ## calculate IoU between 300 rois from RPN and missed_gts
         # for i in range(current_missed_gt.shape[0]):
         #     IoU = get_IoU(current_missed_gt[i, :], rois)
@@ -103,13 +104,17 @@ if __name__ == '__main__':
         #         num_IoU_less_than_half = num_IoU_less_than_half + 1
         ##
         ## calculate IoU between final detect result and missed_gts
-        # for i in range(current_missed_gt.shape[0]):
-        #     IoU = get_IoU(current_missed_gt[i, :], det_boxes)
-        #     if max(IoU) > 0.5:
-        #         num_IoU_greater_than_half = num_IoU_greater_than_half + 1
-        #         print('max IoU = {}, score = {}'.format(max(IoU), det_scores[np.argmax(IoU)]))
-        #     else:
-        #         num_IoU_less_than_half = num_IoU_less_than_half + 1
+        for i in range(current_missed_gt.shape[0]):
+            IoU = get_IoU(current_missed_gt[i, :], det_boxes)
+            if max(IoU) > 0.5:
+                num_IoU_greater_than_half = num_IoU_greater_than_half + 1
+                print('img {}: max IoU = {}, score = {}'.format(image_name, max(IoU), det_scores[np.argmax(IoU)]))
+                dets = np.hstack((det_boxes,
+                                  det_scores[:, np.newaxis])).astype(np.float32)
+                vis_detections(im, cls_name, dets, thresh=det_scores[np.argmax(IoU)]-0.0001)
+            else:
+                num_IoU_less_than_half = num_IoU_less_than_half + 1
+
         ##
     print('IoU > 0.5: {}, IoU < 0.5: {}'.format(num_IoU_greater_than_half, num_IoU_less_than_half))
     #
