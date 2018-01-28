@@ -34,7 +34,7 @@ cfg.TEST.RPN_PRE_NMS_TOP_N = 6000, cfg.TEST.RPN_POST_NMS_TOP_N = 3000: IoU > 0.5
 cfg.TEST.RPN_PRE_NMS_TOP_N = Inf, cfg.TEST.RPN_POST_NMS_TOP_N = 1000: IoU > 0.5: 116, IoU < 0.5: 31
 
 # v2.2
-Check if whole rpn results can cover all missed_gts.
+Check if whole rpn results can cover all missed_gts. 
 
 Change list:
 - [Modify_file] analyze_missed_gts.py
