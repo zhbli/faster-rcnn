@@ -115,14 +115,18 @@ Change list:
 - [Modify_function] voc_eval
 
 Result:
-(5200 iters)
+(5200 iters, lr_38000=0.0001)
 AP for pottedplant = 0.8971
 AP for leaf = 0.4742
 
-(14000 iters)
+(14000 iters, lr=0.001)
 AP for pottedplant = 0.9086
 AP for leaf = 0.6161
 
-(22000 iters)
+(22000 iters, lr=0.001)
 AP for pottedplant = 0.9091
 AP for leaf = 0.6309
+
+(40000 iters, lr=0.001)
+AP for pottedplant = 0.9091
+AP for leaf = 0.6346
