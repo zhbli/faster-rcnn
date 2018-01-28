@@ -216,12 +216,19 @@ def voc_eval(detpath,
       if gt_num == 0:
           continue
       for j in range(gt_num):
-          bbox = det_results[img_name]['gt']['bbox'][j]
+          bbox = det_results[img_name]['gt']['bbox'][j].reshape(1, 4)
           difficult = det_results[img_name]['gt']['difficult'][j]
           detected = det_results[img_name]['gt']['detected'][j]
           if detected == 0 and difficult == 0:  #find missed gt
-              print('hehe')
+              if not missed_gt.__contains__(img_name):
+                missed_gt[img_name] = np.zeros([0, 4])
+              missed_gt[img_name] = np.append(missed_gt[img_name], bbox, axis=0)
+  #
 
+  # save missed_gt into pkl
+  missed_gt_file = open('backup/missed_gt_{:s}.pkl'.format(classname), 'wb')
+  pickle.dump(missed_gt, missed_gt_file)
+  missed_gt_file.close()
   #
 
   # compute precision recall
