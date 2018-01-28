@@ -11,6 +11,6 @@ Change list:
 - [Add_files] missed_gt_*.pkl: missed ground truth files
 
 # v2.0
-Check IoU between 300 det_results and every missed_gt in one img.
+Check IoU between 300 det_results and every missed_gt in one img.  
 
 Usage: Run `analyze`
