@@ -114,7 +114,7 @@ Usage: Run `test_net.py --imdb voc_2007_zhbli_pottedplant_untruncated_easy_train
 Change list:
 - [Modify_function] voc_eval
 
-Result:
+Result: (loss is very small)
 (5200 iters, lr_38000=0.0001)
 AP for pottedplant = 0.8971
 AP for leaf = 0.4742
@@ -130,3 +130,10 @@ AP for leaf = 0.6309
 (40000 iters, lr=0.001)
 AP for pottedplant = 0.9091
 AP for leaf = 0.6346
+
+(43000 iters, lr_4000=0.0001)
+AP for pottedplant = 0.9091
+AP for leaf = 0.6334
+(test_set: AP for pottedplant = 0.2608, overfit)
+
+The results above shows leaf class cannot be trained good enough. 
