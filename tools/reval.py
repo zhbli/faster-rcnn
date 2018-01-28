@@ -26,8 +26,8 @@ def parse_args():
   Parse input arguments
   """
   parser = argparse.ArgumentParser(description='Re-evaluate results')
-  parser.add_argument('output_dir', nargs=1, help='results directory',
-                      type=str)
+  parser.add_argument('--output_dir', dest='output_dir', help='results directory',
+                      default='backup', type=str)
   parser.add_argument('--imdb', dest='imdb_name',
                       help='dataset to re-evaluate',
                       default='voc_2007_test', type=str)
@@ -38,11 +38,6 @@ def parse_args():
                       action='store_true')
   parser.add_argument('--nms', dest='apply_nms', help='apply nms',
                       action='store_true')
-
-  if len(sys.argv) == 1:
-    parser.print_help()
-    sys.exit(1)
-
   args = parser.parse_args()
   return args
 
@@ -67,6 +62,6 @@ def from_dets(imdb_name, output_dir, args):
 if __name__ == '__main__':
   args = parse_args()
 
-  output_dir = os.path.abspath(args.output_dir[0])
+  output_dir = os.path.abspath(args.output_dir)
   imdb_name = args.imdb_name
   from_dets(imdb_name, output_dir, args)

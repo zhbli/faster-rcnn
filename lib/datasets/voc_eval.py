@@ -220,7 +220,7 @@ def voc_eval(detpath,
           difficult = det_results[img_name]['gt']['difficult'][j]
           detected = det_results[img_name]['gt']['detected'][j]
           if detected == 0 and difficult == 0:  #find missed gt
-              pass
+              print('hehe')
 
   #
 
