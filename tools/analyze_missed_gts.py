@@ -80,18 +80,27 @@ if __name__ == '__main__':
         im_file = '/data/zhbli/VOCdevkit/VOC2007/JPEGImages/{}.jpg'.format(image_name)
         im = cv2.imread(im_file)
         assert im is not None, 'no img: {}'.format(im_file)
-        scores, boxes = im_detect(net, im)
+        scores, rois, boxes = im_detect(net, im)
         det_boxes = boxes[:, 4 * cls_id:4 * (cls_id + 1)]
         det_scores = scores[:, cls_id]
         ##
-        ## calculate IoU
+        ## calculate IoU between 300 rois from RPN and missed_gts
         for i in range(current_missed_gt.shape[0]):
-            IoU = get_IoU(current_missed_gt[i, :], det_boxes)
+            IoU = get_IoU(current_missed_gt[i, :], rois)
             if max(IoU) > 0.5:
                 num_IoU_greater_than_half = num_IoU_greater_than_half + 1
                 print('max IoU = {}, score = {}'.format(max(IoU), det_scores[np.argmax(IoU)]))
             else:
                 num_IoU_less_than_half = num_IoU_less_than_half + 1
+        ##
+        ## calculate IoU between final detect result and missed_gts
+        # for i in range(current_missed_gt.shape[0]):
+        #     IoU = get_IoU(current_missed_gt[i, :], det_boxes)
+        #     if max(IoU) > 0.5:
+        #         num_IoU_greater_than_half = num_IoU_greater_than_half + 1
+        #         print('max IoU = {}, score = {}'.format(max(IoU), det_scores[np.argmax(IoU)]))
+        #     else:
+        #         num_IoU_less_than_half = num_IoU_less_than_half + 1
         ##
     print('IoU > 0.5: {}, IoU < 0.5: {}'.format(num_IoU_greater_than_half, num_IoU_less_than_half))
     #

@@ -106,7 +106,7 @@ def im_detect(net, im):
     # Simply repeat the boxes, once for each class
     pred_boxes = np.tile(boxes, (1, scores.shape[1]))
 
-  return scores, pred_boxes
+    return scores, boxes, pred_boxes
 
 def apply_nms(all_boxes, thresh):
   """Apply non-maximum suppression to all predicted boxes output by the
