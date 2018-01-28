@@ -99,7 +99,7 @@ def voc_eval(detpath,
   # assumes imagesetfile is a text file with each line an image name
   # cachedir caches the annotations in a pickle file
 
-  # first load gt
+  # first load imagenames
   if not os.path.isdir(cachedir):
     os.mkdir(cachedir)
   cachefile = os.path.join(cachedir, '%s_annots.pkl' % imagesetfile)
@@ -107,26 +107,49 @@ def voc_eval(detpath,
   with open(imagesetfile, 'r') as f:
     lines = f.readlines()
   imagenames = [x.strip() for x in lines]
+  #
 
+  # load leaf anno
+  leaf_anno_file = open('tools/leaf_gts.pkl', 'rb')
+  leaf_anno = pickle.load(leaf_anno_file)
+  #
+
+  # load gts
   if not os.path.isfile(cachefile):
-    # load annotations
+    ## load annotations
     recs = {}
     for i, imagename in enumerate(imagenames):
       recs[imagename] = parse_rec(annopath.format(imagename))
+      if imagename in leaf_anno.keys():
+          current_leaf_anno = leaf_anno[imagename]  # np.ndarray
+          num_leaf = current_leaf_anno.shape[0]
+          for j in range(num_leaf):
+              obj_struct = {}
+              obj_struct['name'] = 'leaf'
+              obj_struct['pose'] = 'Unspecified'
+              obj_struct['truncated'] = 0
+              obj_struct['difficult'] = 0
+              bbox = current_leaf_anno[j, :].astype(np.int)
+              obj_struct['bbox'] = bbox.reshape(4).tolist()
+              recs[imagename].append(obj_struct)
       if i % 100 == 0:
         print('Reading annotation for {:d}/{:d}'.format(
           i + 1, len(imagenames)))
-    # save
+    ##
+    ## save
     print('Saving cached annotations to {:s}'.format(cachefile))
     with open(cachefile, 'wb') as f:
       pickle.dump(recs, f)
+    ##
   else:
-    # load
+    ## load
     with open(cachefile, 'rb') as f:
       try:
         recs = pickle.load(f)
       except:
         recs = pickle.load(f, encoding='bytes')
+    ##
+  #
 
   # extract gt objects for this class
   class_recs = {}
