@@ -227,7 +227,7 @@ def voc_eval(detpath,
 
   # save missed_gt into pkl
   missed_gt_file = open('backup/missed_gt_{:s}.pkl'.format(classname), 'wb')
-  pickle.dump(missed_gt, missed_gt_file)
+  pickle.dump(missed_gt, missed_gt_file, 2)
   missed_gt_file.close()
   #
 
