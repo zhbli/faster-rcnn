@@ -122,3 +122,7 @@ AP for leaf = 0.4742
 (14000 iters)
 AP for pottedplant = 0.9086
 AP for leaf = 0.6161
+
+(22000 iters)
+AP for pottedplant = 0.9091
+AP for leaf = 0.6309
