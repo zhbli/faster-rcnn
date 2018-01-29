@@ -10,6 +10,8 @@ from __future__ import print_function
 
 import numpy as np
 import numpy.random as npr
+import cv2
+import matplotlib.pyplot as plt
 from model.config import cfg
 from model.bbox_transform import bbox_transform
 from utils.bbox import bbox_overlaps
@@ -101,6 +103,65 @@ def _compute_targets(ex_rois, gt_rois, labels):
   return torch.cat(
     [labels.unsqueeze(1), targets], 1)
 
+def visualize_rois(rois, labels, gt_boxes):
+    """
+    :param rois:        ndarray, size = [256, 4]
+    :param labels:      ndarray, size = [256]
+    :param gt_boxes:    ndarray, size = [?, 4]
+    :return: None
+    """
+
+    # define vars
+    is_flipped = cfg.current_img_flipped  # bool
+    img_name = cfg.current_img_name
+    width = cfg.current_img_width_after_scaled
+    scale = cfg.current_img_scale
+    #
+
+    # Handle flip and scale
+    if is_flipped:
+        oldx1 = rois[:, 0].copy()
+        oldx2 = rois[:, 2].copy()
+        rois[:, 0] = width - oldx2 - 1  # self._im_info[1] is width of img after scaled
+        rois[:, 2] = width - oldx1 - 1
+        oldx1 = gt_boxes[:, 0].copy()
+        oldx2 = gt_boxes[:, 2].copy()
+        gt_boxes[:, 0] = width - oldx2 - 1  # self._im_info[1] is width of img after scaled
+        gt_boxes[:, 2] = width - oldx1 - 1
+    rois = rois / scale
+    gt_boxes = gt_boxes / scale
+    #cfg.current_img_scale
+
+    # display rois
+    im = cv2.imread(img_name)
+    im = im[:, :, (2, 1, 0)]
+    fig, ax = plt.subplots(figsize=(12, 12))
+    ax.imshow(im, aspect='equal')
+    for j in range(gt_boxes.shape[0]):
+        gt = gt_boxes[j]
+        ax.add_patch(
+            plt.Rectangle((gt[0], gt[1]),
+                          gt[2] - gt[0],
+                          gt[3] - gt[1], fill=False, linestyle='-',
+                          edgecolor=[np.random.rand(), np.random.rand(), np.random.rand()], linewidth=0.5)
+        )
+    for i in range(rois.shape[0]):
+        roi = rois[i]
+        label = labels[i]
+        ax.add_patch(
+            plt.Rectangle((roi[0], roi[1]),
+                          roi[2] - roi[0],
+                          roi[3] - roi[1], fill=False, linestyle='--',
+                          edgecolor=[np.random.rand(), np.random.rand(), np.random.rand()], linewidth=0.5)
+        )
+        ax.text(roi[0], roi[1] - 2,
+                'label: {}'.format(label),
+                bbox=dict(facecolor='blue', alpha=0.5),
+                fontsize=8, color='white')
+    plt.axis('off')
+    plt.tight_layout()
+    plt.draw()
+    #
 
 def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_image, num_classes):
   """Generate a random sample of RoIs comprising foreground and background
@@ -152,5 +213,9 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
 
   bbox_targets, bbox_inside_weights = \
     _get_bbox_regression_labels(bbox_target_data, num_classes)
+
+  if 'visualize_rois' in cfg.keys():
+    print('Visualize_rois.')
+    visualize_rois(rois.data.cpu().numpy(), labels.data.cpu().numpy(), gt_boxes[:, :4].data.cpu().numpy())
 
   return labels, rois, roi_scores, bbox_targets, bbox_inside_weights

@@ -48,7 +48,13 @@ def get_minibatch(roidb, num_classes):
   blobs['im_info'] = np.array(
     [im_blob.shape[1], im_blob.shape[2], im_scales[0]],
     dtype=np.float32)
-
+  cfg.current_img_name = roidb[0]['image']
+  cfg.current_img_flipped = roidb[0]['flipped']
+  cfg.current_img_width_origin = roidb[0]['width']
+  cfg.current_img_height_origin = roidb[0]['height']
+  cfg.current_img_width_after_scaled = blobs['im_info'][1]
+  cfg.current_img_height_after_scaled = blobs['im_info'][0]
+  cfg.current_img_scale = blobs['im_info'][2]
   return blobs
 
 def _get_image_blob(roidb, scale_inds):

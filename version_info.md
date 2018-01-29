@@ -17,3 +17,13 @@ Usage: Run `generate_img_attention.py`
 
 Change list:  
 - [Add_file] generate_img_attention.py
+
+# v3.0
+Visualize rois sampled from function _sample_rois.
+
+Usage: Run `visualize_rois.py`
+
+Change list:  
+- [Add_flie] visualize_rois.py
+- [Add_function] visualize_rois
+- [Modify_function] _sample_rois
