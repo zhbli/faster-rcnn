@@ -9,3 +9,11 @@ Usage: Run `test_any_roi.py`
 Change list:  
 - [Add_file] test_any_roi.py
 - [Modify_function] _predict
+
+# v2.0  
+Generate attention map of an image.
+
+Usage: Run `generate_img_attention.py`  
+
+Change list:  
+- [Add_file] generate_img_attention.py
