@@ -362,8 +362,13 @@ class Network(nn.Module):
 
     # build the anchors for the image
     self._anchor_component(net_conv.size(2), net_conv.size(3))
-   
-    rois = self._region_proposal(net_conv)
+    rois = None
+    if 'global_roi' in cfg.keys():
+        rois = cfg.global_roi
+        self._predictions["rois"] = rois
+        print('RoI is selected manually.')
+    else:
+        rois = self._region_proposal(net_conv)
     if cfg.POOLING_MODE == 'crop':
       pool5 = self._crop_pool_layer(net_conv, rois)
     else:
