@@ -27,3 +27,11 @@ Change list:
 - [Add_flie] visualize_rois.py
 - [Add_function] visualize_rois
 - [Modify_function] _sample_rois
+
+# v4.0
+Visualize receptive field.
+
+Usage: Run `visualize_receptive_field.py`
+
+Change list:
+- [Add_file] visualize_receptive_field.py
