@@ -10,9 +10,14 @@ from __future__ import print_function
 import tensorboardX as tb
 
 from model.config import cfg
+from model.nms_wrapper import nms
+from model.test import im_detect
 import roi_data_layer.roidb as rdl_roidb
 from roi_data_layer.layer import RoIDataLayer
+from datasets.factory import get_imdb
 import utils.timer
+from utils.bbox import bbox_overlaps
+
 try:
   import cPickle as pickle
 except ImportError:
@@ -26,6 +31,7 @@ import os
 import sys
 import glob
 import time
+import cv2
 
 
 def scale_lr(optimizer, scale):
@@ -96,12 +102,12 @@ class SolverWrapper(object):
     # tried my best to find the random states so that it can be recovered exactly
     # However the Tensorflow state is currently not available
     with open(nfile, 'rb') as fid:
-      st0 = pickle.load(fid)
-      cur = pickle.load(fid)
-      perm = pickle.load(fid)
-      cur_val = pickle.load(fid)
-      perm_val = pickle.load(fid)
-      last_snapshot_iter = pickle.load(fid)
+      st0 = pickle.load(fid, encoding='latin1')
+      cur = pickle.load(fid, encoding='latin1')
+      perm = pickle.load(fid, encoding='latin1')
+      cur_val = pickle.load(fid, encoding='latin1')
+      perm_val = pickle.load(fid, encoding='latin1')
+      last_snapshot_iter = pickle.load(fid, encoding='latin1')
 
       np.random.set_state(st0)
       self.data_layer._cur = cur
@@ -208,7 +214,64 @@ class SolverWrapper(object):
       os.remove(str(sfile))
       ss_paths.remove(sfile)
 
+  def test_during_train(self, imdb, iter):
+      cfg.hard_negative = {}
+      net = self.net
+      np.random.seed(cfg.RNG_SEED)
+      num_images = len(imdb.image_index)
+      save_idx = np.random.choice(num_images, 128)
+      save_dir = 'output/test_during_train/iter_{}'.format(iter)
+      for i in range(num_images):
+          img_name = imdb.image_index[i]
+          print('test img {}'.format(img_name))
+          gt = imdb.roidb[i]['boxes'].astype(np.float)  # ndarray, [?, 4]
+          im = cv2.imread(imdb.image_path_at(i))
+          scores, boxes = im_detect(net, im)  # boxes: ndarray, [300, 84]. scores: ndarray, [300, 21]
+          max_score_cls = np.argmax(scores[:, 1:], axis=1) + 1  # ndarray, [300], class index of every roi.
+          max_scores = scores[range(0,scores.shape[0]), max_score_cls]
+          max_score_boxes = np.zeros([0, 4])  # ndarray, [300, 4], 300 predicted boxes.
+          for j in range(scores.shape[0]):
+              max_score_boxes = np.append(max_score_boxes, boxes[j, 4*max_score_cls[j]:4*(max_score_cls[j] + 1)].reshape(-1, 4), axis=0)
+          overlaps = bbox_overlaps(max_score_boxes, gt)
+          no_overlap_box_inds = np.nonzero(np.max(overlaps, axis=1) == 0)[0]  # ndarray, [?]
+          if no_overlap_box_inds.shape[0] > 0:
+              worst_idx = no_overlap_box_inds[np.argmax(max_scores[no_overlap_box_inds])]
+              worst_box = max_score_boxes[worst_idx].astype(int)
+              if worst_box[2] - worst_box[0] <= 0 or worst_box[3]- worst_box[1] <= 0:
+                  continue
+              cfg.hard_negative[img_name] = worst_box  # ndarray, [4]
+              ## save img with boxes
+              if i in save_idx:
+                  ## draw gt boxes
+                  for k in range(gt.shape[0]):
+                      pt1 = (int(gt[k][0]), int(gt[k][1]))
+                      pt2 = (int(gt[k][2]), int(gt[k][3]))
+                      cv2.rectangle(im, pt1, pt2, color=(0, 255, 0))
+                  ##
+                  ## draw worst box
+                  pt1 = (worst_box[0], worst_box[1])
+                  pt2 = (worst_box[2], worst_box[3])
+                  cv2.rectangle(im, pt1, pt2, color=(255, 0, 0))
+                  ##
+                  ## save
+                  file_name = os.path.join(save_dir, '{}.jpg'.format(img_name))
+                  if not os.path.exists(save_dir):
+                      os.makedirs(save_dir)
+                  cv2.imwrite(file_name, im)
+                  ##
+              ##
+
+
   def train_model(self, max_iters):
+    # define vars
+    cfg.hard_negative = {}
+    #
+
+    # get test imdb
+    imdb_test = get_imdb('voc_2007_trainval')
+    imdb_test.competition_mode(False)
+    #
+
     # Build data layers for both training and validation set
     self.data_layer = RoIDataLayer(self.roidb, self.imdb.num_classes)
     self.data_layer_val = RoIDataLayer(self.valroidb, self.imdb.num_classes, random=True)
@@ -236,6 +299,7 @@ class SolverWrapper(object):
     self.net.cuda()
 
     while iter < max_iters + 1:
+      cfg.current_iter = iter
       # Learning rate
       if iter == next_stepsize + 1:
         # Add snapshot here before reducing the learning rate
@@ -249,18 +313,15 @@ class SolverWrapper(object):
       blobs = self.data_layer.forward()
 
       now = time.time()
-      if iter == 1 or now - last_summary_time > cfg.TRAIN.SUMMARY_INTERVAL:
-        # Compute the graph with summary
-        rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss, summary = \
-          self.net.train_step_with_summary(blobs, self.optimizer)
-        for _sum in summary: self.writer.add_summary(_sum, float(iter))
-        # Also check the summary on the validation set
-        blobs_val = self.data_layer_val.forward()
-        summary_val = self.net.get_summary(blobs_val)
-        for _sum in summary_val: self.valwriter.add_summary(_sum, float(iter))
-        last_summary_time = now
+      if iter % 3500 == 0:
+        ## use traing_dataset to test net
+        print('test during training...')
+        self.net.eval()
+        self.test_during_train(imdb_test, iter)
+        ##
       else:
         # Compute the graph without summary
+        self.net.train()
         rpn_loss_cls, rpn_loss_box, loss_cls, loss_box, total_loss = \
           self.net.train_step(blobs, self.optimizer)
       utils.timer.timer.toc()

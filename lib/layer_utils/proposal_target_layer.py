@@ -11,6 +11,7 @@ from __future__ import print_function
 import numpy as np
 import numpy.random as npr
 import cv2
+import os
 import matplotlib.pyplot as plt
 from model.config import cfg
 from model.bbox_transform import bbox_transform
@@ -103,11 +104,13 @@ def _compute_targets(ex_rois, gt_rois, labels):
   return torch.cat(
     [labels.unsqueeze(1), targets], 1)
 
-def visualize_rois(rois, labels, gt_boxes):
+def visualize_rois(rois, labels, gt_boxes, hard_inds, fg_inds):
     """
     :param rois:        ndarray, size = [256, 4]
     :param labels:      ndarray, size = [256]
     :param gt_boxes:    ndarray, size = [?, 4]
+    :param hard_inds:   ndarray or None, size = [?]
+    :param fg_inds:     LongTensor
     :return: None
     """
 
@@ -116,6 +119,11 @@ def visualize_rois(rois, labels, gt_boxes):
     img_name = cfg.current_img_name
     width = cfg.current_img_width_after_scaled
     scale = cfg.current_img_scale
+    save_path = 'output/visualize_rois'
+    #
+
+    # delete old imgs
+    os.system('rm -rf ' + save_path)
     #
 
     # Handle flip and scale
@@ -134,39 +142,66 @@ def visualize_rois(rois, labels, gt_boxes):
 
     # display rois
     im = cv2.imread(img_name)
-    im = im[:, :, (2, 1, 0)]
-    fig, ax = plt.subplots(figsize=(12, 12))
-    ax.imshow(im, aspect='equal')
     for j in range(gt_boxes.shape[0]):
-        gt = gt_boxes[j]
-        ax.add_patch(
-            plt.Rectangle((gt[0], gt[1]),
-                          gt[2] - gt[0],
-                          gt[3] - gt[1], fill=False, linestyle='-',
-                          edgecolor=[np.random.rand(), np.random.rand(), np.random.rand()], linewidth=0.5)
-        )
+        gt = gt_boxes[j].astype(np.int)
+        pt1 = (gt[0], gt[1])
+        pt2 = (gt[2], gt[3])
+        cv2.rectangle(im, pt1, pt2, color=(0, 255, 0))
+    if cfg.current_img_name[-10:-4] in cfg.hard_negative.keys():
+        hard_negative = cfg.hard_negative[cfg.current_img_name[-10:-4]].astype(np.int)  # ndarray, [4]
+        pt1 = (hard_negative[0], hard_negative[1])
+        pt2 = (hard_negative[2], hard_negative[3])
+        cv2.rectangle(im, pt1, pt2, color=(0, 0, 255))
+        if hard_inds is None:
+            print('Hard negative exists, but no hard roi is selected.')
+    else:
+        print('no hard negative')
+    if len(fg_inds) == 0:
+        print('No fg_rois.')
     for i in range(rois.shape[0]):
-        roi = rois[i]
-        label = labels[i]
-        ax.add_patch(
-            plt.Rectangle((roi[0], roi[1]),
-                          roi[2] - roi[0],
-                          roi[3] - roi[1], fill=False, linestyle='--',
-                          edgecolor=[np.random.rand(), np.random.rand(), np.random.rand()], linewidth=0.5)
-        )
-        ax.text(roi[0], roi[1] - 2,
-                'label: {}'.format(label),
-                bbox=dict(facecolor='blue', alpha=0.5),
-                fontsize=8, color='white')
-    plt.axis('off')
-    plt.tight_layout()
-    plt.draw()
+        im1 = im.copy()
+        roi = rois[i].astype(np.int)
+        # label = labels[i]
+        pt1 = (roi[0], roi[1])
+        pt2 = (roi[2], roi[3])
+        cv2.rectangle(im1, pt1, pt2, color=(255, 0, 0))
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        cv2.imwrite(os.path.join(save_path, '{}_{}.jpg'.format(cfg.current_img_name[-10:-4], i)), im1)
     #
 
 def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_image, num_classes):
   """Generate a random sample of RoIs comprising foreground and background
   examples.
   """
+  # get hard negatives
+  hard_inds = None
+  if cfg.current_img_name[-10:-4] in cfg.hard_negative.keys():
+      hard_negative = cfg.hard_negative[cfg.current_img_name[-10:-4]].astype(np.float)  # ndarray, [4]
+      ## flip
+      if cfg.current_img_flipped:
+          oldx1 = hard_negative[0].copy()
+          oldx2 = hard_negative[2].copy()
+          hard_negative[0] = cfg.current_img_width_origin - oldx2 - 1
+          hard_negative[2] = cfg.current_img_width_origin - oldx1 - 1
+          assert (hard_negative[2] >= hard_negative[0]).all()
+      ##
+      ## rescale
+      hard_negative = hard_negative * cfg.current_img_scale
+      ##
+      ## get IoU between all_rois and hard_engative
+      overlaps_hard_negative = bbox_overlaps(
+          all_rois[:, 1:5].data.cpu().numpy(),
+          hard_negative.reshape(-1, 4))
+      hard_inds, _ = np.where(overlaps_hard_negative > 0.5)# inds whose IoU is greater than 0.5 with hard_negative
+      if hard_inds.shape[0] != 0:
+          hard_inds = np.random.choice(hard_inds, 32)
+          hard_inds = torch.from_numpy(hard_inds).type(torch.cuda.LongTensor)
+      else:
+          hard_inds = None
+      ##
+  #
+
   # overlaps: (rois x gt_boxes)
   overlaps = bbox_overlaps(
     all_rois[:, 1:5].data,
@@ -187,6 +222,8 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
     bg_rois_per_image = rois_per_image - fg_rois_per_image
     to_replace = bg_inds.numel() < bg_rois_per_image
     bg_inds = bg_inds[torch.from_numpy(npr.choice(np.arange(0, bg_inds.numel()), size=int(bg_rois_per_image), replace=to_replace)).long().cuda()]
+    if hard_inds is not None:
+        bg_inds[-len(hard_inds):] = hard_inds
   elif fg_inds.numel() > 0:
     to_replace = fg_inds.numel() < rois_per_image
     fg_inds = fg_inds[torch.from_numpy(npr.choice(np.arange(0, fg_inds.numel()), size=int(rois_per_image), replace=to_replace)).long().cuda()]
@@ -214,8 +251,8 @@ def _sample_rois(all_rois, all_scores, gt_boxes, fg_rois_per_image, rois_per_ima
   bbox_targets, bbox_inside_weights = \
     _get_bbox_regression_labels(bbox_target_data, num_classes)
 
-  if 'visualize_rois' in cfg.keys():
+  if cfg.current_iter % 2000 == 0:
     print('Visualize_rois.')
-    visualize_rois(rois.data.cpu().numpy(), labels.data.cpu().numpy(), gt_boxes[:, :4].data.cpu().numpy())
+    visualize_rois(rois[:, 1:].data.cpu().numpy(), labels.data.cpu().numpy(), gt_boxes[:, :4].data.cpu().numpy(), hard_inds, fg_inds)
 
   return labels, rois, roi_scores, bbox_targets, bbox_inside_weights

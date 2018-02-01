@@ -12,8 +12,8 @@ def bbox_overlaps(boxes, query_boxes):
     overlaps: (N, K) overlap between boxes and query_boxes
     """
     if isinstance(boxes, np.ndarray):
-        boxes = torch.from_numpy(boxes)
-        query_boxes = torch.from_numpy(query_boxes)
+        boxes = torch.from_numpy(boxes).type(torch.FloatTensor)
+        query_boxes = torch.from_numpy(query_boxes).type(torch.FloatTensor)
         out_fn = lambda x: x.numpy() # If input is ndarray, turn the overlaps back to ndarray when return
     else:
         out_fn = lambda x: x
